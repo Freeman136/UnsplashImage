@@ -77,12 +77,13 @@ class ViewController: UIViewController, UISearchBarDelegate {
         guard let searchText = searchBar.text else {
             return
         }
-        fetchRequest(textFromsearchBar: searchText)
+        textFromsearchBar = searchText
+        fetchRequest()
         print("поиск...")
     }
 
     // MARK: fetchRequest
-    func fetchRequest(textFromsearchBar: String) {
+    func fetchRequest() {
         networkManager.loadDataUrls(searchRequest: textFromsearchBar) { [weak self]  result in
             guard let self = self else { return }
 
@@ -101,20 +102,25 @@ class ViewController: UIViewController, UISearchBarDelegate {
                             DispatchQueue.main.async {
                                 self.activityIndicator.stopAnimating()
                                 self.collectionView.reloadData()
-
                             }
                         }
                     }
                 }
                 if resultImageArray.count == 0 {
                     DispatchQueue.main.async {
+                        self.activityIndicator.stopAnimating()
                         self.errorLable.isHidden = false
                         self.collectionView.isHidden = true
                     }
                 }
 
             case .failure(_):
-                self.errorLable.isHidden = false
+                DispatchQueue.main.async {
+                    self.errorLable.textColor = .white
+                    self.addDonSimon()
+                    self.errorLable.isHidden = false
+                    self.activityIndicator.stopAnimating()
+                }
             }
         }
     }
@@ -123,9 +129,29 @@ class ViewController: UIViewController, UISearchBarDelegate {
 // MARK: Setup constraint
 extension ViewController {
     
+    func addDonSimon() {
+        let image = UIImage(named: "DonSimon")
+        let UIViewImage = UIImageView(image: image)
+        UIViewImage.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(UIViewImage)
+        NSLayoutConstraint.activate([
+            UIViewImage.widthAnchor.constraint(equalToConstant: 150),
+            UIViewImage.heightAnchor.constraint(equalToConstant: 170),
+            UIViewImage.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            UIViewImage.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+
+        ])
+        UIViewImage.alpha = 0.0
+        UIView.animate(withDuration: 1.0, animations: {
+                UIViewImage.alpha = 1.0
+            self.view.backgroundColor = .black
+            self.collectionView.backgroundColor = .black
+            })
+
+    }
     func setupSearchBar() {
         errorLable.isHidden = true
-        
+
         if let searchBarTextField = searchBar.value(forKey: "searchField") as? UITextField {
             searchBarTextField.textColor = UIColor.black
         }
@@ -135,13 +161,30 @@ extension ViewController {
         searchBar.delegate = self
         searchBar.placeholder = "Телефон, яблоки, груши"
     }
-    
+
+    private func scaleImage(_ image: UIImage, toSize newSize: CGSize) -> UIImage {
+         let aspectWidth = newSize.width / image.size.width
+         let aspectHeight = newSize.height / image.size.height
+         let aspectRatio = min(aspectWidth, aspectHeight)
+
+         let scaledSize = CGSize(width: image.size.width * aspectRatio, height: image.size.height * aspectRatio)
+         let renderer = UIGraphicsImageRenderer(size: scaledSize)
+
+         let scaledImage = renderer.image { context in
+             image.draw(in: CGRect(origin: .zero, size: scaledSize))
+         }
+         return scaledImage
+     }
+
     func setupConstraints(button: UIButton, searchBar: UISearchBar) {
         view.addSubview(searchBar)
         view.addSubview(button)
         view.addSubview(collectionView)
         view.addSubview(activityIndicator)
         view.addSubview(errorLable)
+        
+        collectionView.showsVerticalScrollIndicator = false
+        collectionView.showsHorizontalScrollIndicator = false
         collectionView.translatesAutoresizingMaskIntoConstraints = false
         topConstraintSearchBar = searchBar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 268)
         NSLayoutConstraint.activate([
@@ -187,17 +230,18 @@ extension ViewController: UICollectionViewDataSource, UICollectionViewDelegate {
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         if let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "MyCell", for: indexPath) as? ImageCell {
             let imageString = resultImageArray[indexPath.row]
-            cell.configure(image: imageString)
+            let compressedImage = scaleImage(imageString, toSize: CGSize(width: 100, height: 100))
+            cell.configure(image: compressedImage)
             return cell
         }
         return UICollectionViewCell()
     }
 
     func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
-
+        print(indexPath)
         if indexPath.item == resultImageArray.count - 1 {
             NetworkManager.paginationCounter += 1
-            fetchRequest(textFromsearchBar: textFromsearchBar)
+            fetchRequest()
         }
 
         // MARK: Animation
